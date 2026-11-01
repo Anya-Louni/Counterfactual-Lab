@@ -1,6 +1,7 @@
 """Loads the cached city once and holds everything a session needs."""
 
 import json
+import threading
 import time
 from functools import cached_property
 
@@ -24,6 +25,7 @@ class Lab:
         self.engine = Engine(self.cells)
         self.metrics: dict[str, Metrics] = {}
         self._comparisons: dict[tuple, dict] = {}
+        self._lock = threading.RLock()
         cached = DATA / f"factual_r{h3_res}.parquet"
         f = self.tree.factual
         if cached.exists():
@@ -51,6 +53,10 @@ class Lab:
         return gpd.read_file(DATA / "boundary.gpkg").to_crs(CRS).geometry.iloc[0]
 
     def metrics_for(self, sid: str) -> Metrics:
+        with self._lock:
+            return self._metrics_for(sid)
+
+    def _metrics_for(self, sid: str) -> Metrics:
         if sid not in self.metrics:
             s = self.tree.nodes[sid]
             self.metrics[sid] = self.engine.compute(s.networks, s.facilities)
@@ -63,6 +69,10 @@ class Lab:
 
     def comparison(self, sid: str, base: str = "factual") -> dict:
         key = (sid, base)
+        with self._lock:
+            return self._comparison(key, sid, base)
+
+    def _comparison(self, key, sid, base) -> dict:
         if key not in self._comparisons:
             self._comparisons[key] = compare(self.metrics_for(base), self.metrics_for(sid), self.cells,
                                              self.cells["commune"])

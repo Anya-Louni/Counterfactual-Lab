@@ -21,10 +21,13 @@ dependencies = [
     "langchain>=1.4.7",
     "langchain-google-genai>=4.4.2",
     "python-dotenv>=1.2.4",
+    "fastapi>=0.162.0",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "matplotlib>=3.11.2",
     "pytest>=8",
 ]
