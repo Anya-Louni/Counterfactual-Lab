@@ -30,7 +30,9 @@ class Network:
     _tree: cKDTree | None = field(default=None, repr=False)
 
     def copy(self) -> "Network":
-        return Network(self.mode, self.nodes, self.edges.copy(), self._tree)  # nodes are never edited
+        # Copy on write: edits replace self.edges with a new frame and never change it in place,
+        # so branches share tables until they edit them. Nodes are never edited.
+        return Network(self.mode, self.nodes, self.edges, self._tree)
 
     @property
     def tree(self) -> tuple[cKDTree, np.ndarray]:

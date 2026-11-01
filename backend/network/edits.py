@@ -141,10 +141,11 @@ def apply_edit(edit, networks: dict[str, Network], facilities: pd.DataFrame) -> 
     if isinstance(edit, ChangeSpeed):
         net = networks["drive"]
         ids = select_edges(net, edit)
-        e = net.edges
+        e = net.edges.copy()  # never write into a table a parent scenario may share
         new_speed = e.loc[ids, "speed_kph"] * edit.factor if edit.factor else edit.speed_kph
         e.loc[ids, "speed_kph"] = new_speed
         e.loc[ids, "travel_time"] = e.loc[ids, "length"] / (e.loc[ids, "speed_kph"] / 3.6)
+        net.edges = e
         return facilities, f"drive: speed changed on {len(ids)} edges"
 
     raise TypeError(f"unknown edit {edit!r}")

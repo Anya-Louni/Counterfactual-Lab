@@ -1,0 +1,7 @@
+.venv
+frontend
+data
+.env
+.git
+.local-notes
+**/__pycache__

@@ -6,6 +6,7 @@ Everything else is plain JSON for the map.
 """
 
 import json
+import os
 import threading
 import uuid
 from contextlib import asynccontextmanager
@@ -41,7 +42,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Counterfactual Accessibility Lab", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
+ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 def lab() -> Lab:

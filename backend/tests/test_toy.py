@@ -144,3 +144,11 @@ def test_isolated_node_resnaps(tree):
     cells.loc["D", ["x", "y"]] = [x - 800, y]  # 200 m from C, 800 m from D
     m = Engine(cells).compute(s.networks, s.facilities)
     assert abs(m.cells.loc["D", "drive.hospital.time_min"] * 60 - (200 + 200 / 1.25)) < 1e-3
+
+
+def test_speed_change_does_not_leak_into_parent(tree):
+    before = tree.factual.networks["drive"].edges.copy()
+    s1 = tree.branch("factual", [ChangeSpeed(way_ids=[100], factor=2)])
+    assert tree.factual.networks["drive"].edges.equals(before)
+    s2 = tree.branch(s1.id, [AddFacility(category="hospital", location=toy.lonlat("D"))])
+    assert s2.networks["drive"].edges is s1.networks["drive"].edges  # shared until edited
