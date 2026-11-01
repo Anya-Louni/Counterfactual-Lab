@@ -16,6 +16,9 @@ CRS = 32631  # WGS 84 / UTM 31N
 WALK_MPS = 4.5 / 3.6  # walking speed, also used for access legs to and from the network
 MODES = ("drive", "walk")
 CATEGORIES = ("hospital", "clinic", "pharmacy", "school")
+SNAP_K = 4  # a cell or facility links to up to 4 street nodes,
+SNAP_RADIUS_M = 300  # those within 300 m, and always the nearest one,
+MAX_NEAREST_M = 1000  # unless even the nearest is over 1 km away: then it has no road access
 HOSPITAL_MERGE_M = 250  # OSM maps many hospital departments as separate hospitals
 
 
@@ -30,15 +33,31 @@ class Network:
         return Network(self.mode, self.nodes, self.edges.copy(), self._tree)  # nodes are never edited
 
     @property
-    def tree(self) -> cKDTree:
+    def tree(self) -> tuple[cKDTree, np.ndarray]:
+        """KD-tree over nodes people can reach from the street: any node on a non-motorway road."""
         if self._tree is None:
-            self._tree = cKDTree(self.nodes[["x", "y"]].to_numpy())
+            local = self.edges[~self.edges.highway.astype(str).str.contains("motorway")]
+            ok = np.flatnonzero(self.nodes.index.isin(pd.Index(local.u).union(pd.Index(local.v))))
+            self._tree = (cKDTree(self.nodes[["x", "y"]].to_numpy()[ok]), ok)
         return self._tree
 
     def snap(self, x, y) -> tuple[np.ndarray, np.ndarray]:
-        """Nearest node position (row in self.nodes) and straight-line distance in metres."""
-        d, i = self.tree.query(np.c_[np.atleast_1d(x), np.atleast_1d(y)])
-        return i, d
+        """Nearest snappable node position (row in self.nodes) and straight-line distance in metres."""
+        tree, ok = self.tree
+        d, i = tree.query(np.c_[np.atleast_1d(x), np.atleast_1d(y)])
+        return ok[i], d
+
+    def snap_multi(self, x, y, k: int = SNAP_K, radius: float = SNAP_RADIUS_M, max_nearest: float = MAX_NEAREST_M):
+        """Up to k snappable nodes per point: the nearest, plus others within radius.
+        Returns node positions (n, k) and distances (n, k), inf where a slot is unused.
+        A point with no node within max_nearest gets all inf (no road access)."""
+        tree, ok = self.tree
+        d, i = tree.query(np.c_[np.atleast_1d(x), np.atleast_1d(y)], k=k)
+        d, i = np.atleast_2d(d), np.atleast_2d(i)
+        used = (d <= radius) | (np.arange(k) == 0)
+        used &= d[:, :1] <= max_nearest
+        i = np.where(i < len(ok), i, 0)
+        return ok[i], np.where(used, d, np.inf)
 
     def reversed_matrix(self, extra_nodes: int = 0) -> csr_matrix:
         """Travel-time matrix with every edge flipped. Dijkstra from a facility on it

@@ -2,7 +2,9 @@
 
 Nodes on a line, 1 km apart, x in metres (UTM), y = 0:
 
-    A(0) --- B(1000) --- C(2000) --- D(3000)        E(5000) isolated until a road is added
+    A(0) --- B(1000) --- C(2000) --- D(3000)        E(5000) --- F(5100)
+
+E-F is a stub road cut off from the rest until a road is added.
 
 Drive edges both ways at 36 km/h = 10 m/s, so each link is 100 s.
 Walk edges both ways at 4.5 km/h = 1.25 m/s, so each link is 800 s.
@@ -15,7 +17,7 @@ from backend.network.edits import TO_UTM
 from backend.network.model import Network
 
 ORIGIN = TO_UTM.transform(3.05, 36.75)  # somewhere in Algiers, so lon/lat edits work
-X = {"A": 0, "B": 1000, "C": 2000, "D": 3000, "E": 5000}
+X = {"A": 0, "B": 1000, "C": 2000, "D": 3000, "E": 5000, "F": 5100}
 IDS = {k: i + 1 for i, k in enumerate(X)}
 
 
@@ -34,7 +36,7 @@ def network(mode: str) -> Network:
                           "lon": [lonlat(k)[0] for k in X], "lat": [lonlat(k)[1] for k in X]},
                          index=[IDS[k] for k in X])
     rows = []
-    for way, (a, b) in enumerate([("A", "B"), ("B", "C"), ("C", "D")], start=100):
+    for way, (a, b) in enumerate([("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")], start=100):
         for u, v in ((a, b), (b, a)):
             rows.append({"id": f"{IDS[u]}-{IDS[v]}-0", "u": IDS[u], "v": IDS[v], "length": 1000.0,
                          "speed_kph": speed * 3.6, "travel_time": 1000 / speed,
@@ -44,10 +46,11 @@ def network(mode: str) -> Network:
 
 
 def cells() -> pd.DataFrame:
+    names = list("ABCDE")
     return pd.DataFrame({"pop": [100.0, 200.0, 300.0, 400.0, 500.0],
-                         "x": [xy(k)[0] for k in X], "y": [xy(k)[1] for k in X],
-                         "lon": [lonlat(k)[0] for k in X], "lat": [lonlat(k)[1] for k in X]},
-                        index=pd.Index(list(X), name="h3"))
+                         "x": [xy(k)[0] for k in names], "y": [xy(k)[1] for k in names],
+                         "lon": [lonlat(k)[0] for k in names], "lat": [lonlat(k)[1] for k in names]},
+                        index=pd.Index(names, name="h3"))
 
 
 def facilities() -> pd.DataFrame:

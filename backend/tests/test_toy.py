@@ -72,15 +72,15 @@ def test_remove_road_by_way(tree):
     s = tree.branch("factual", [RemoveRoad(way_ids=[101])])  # B-C, both directions
     t, _ = times(tree, s.id)
     assert close(t, [0, 100, INF, INF, INF])
-    assert len(s.networks["drive"].edges) == 4
+    assert len(s.networks["drive"].edges) == 6
 
 
 def test_remove_road_by_area(tree):
     bx, by = toy.lonlat("B")
     box = [(bx - 0.001, by - 0.001), (bx + 0.001, by - 0.001), (bx + 0.001, by + 0.001), (bx - 0.001, by + 0.001)]
     s = tree.branch("factual", [RemoveRoad(area=box, modes=["drive"])])
-    assert len(s.networks["drive"].edges) == 2  # only C-D left
-    assert len(s.networks["walk"].edges) == 6
+    assert len(s.networks["drive"].edges) == 4  # C-D and E-F left
+    assert len(s.networks["walk"].edges) == 8
 
 
 def test_change_speed(tree):
@@ -91,7 +91,7 @@ def test_change_speed(tree):
 
 def test_factual_never_mutated(tree):
     before = tree.factual.networks["drive"].edges.copy()
-    tree.branch("factual", [RemoveRoad(way_ids=[100, 101, 102]), RemoveFacility(facility_id="h1")])
+    tree.branch("factual", [RemoveRoad(way_ids=[100, 101, 102, 103]), RemoveFacility(facility_id="h1")])
     assert tree.factual.networks["drive"].edges.equals(before)
     assert "h1" in tree.factual.facilities.index
 
@@ -130,3 +130,17 @@ def test_equity():
     assert weighted_gini([5, 5, 5], [1, 2, 3]) == pytest.approx(0)
     assert weighted_gini([1, 2], [1, 1]) == pytest.approx(weighted_gini([1, 1, 2, 2], [1, 1, 1, 1]))
     assert weighted_quantile([1, 2, 3, 4], [1, 1, 1, 1], 0.5) == 2
+
+
+def test_isolated_node_resnaps(tree):
+    # Cut the C-D link: D's node keeps no roads in or out. D's cell is 1 km from C, beyond the
+    # re-snap limit, so it stays cut off. A cell 200 m from C snaps to C directly.
+    s = tree.branch("factual", [RemoveRoad(way_ids=[102])])
+    t, _ = times(tree, s.id)
+    assert close(t, [0, 100, 200, INF, INF])
+    import pandas as pd
+    cells = toy.cells()
+    x, y = toy.xy("D")
+    cells.loc["D", ["x", "y"]] = [x - 800, y]  # 200 m from C, 800 m from D
+    m = Engine(cells).compute(s.networks, s.facilities)
+    assert abs(m.cells.loc["D", "drive.hospital.time_min"] * 60 - (200 + 200 / 1.25)) < 1e-3

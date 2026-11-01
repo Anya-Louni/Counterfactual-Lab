@@ -1,9 +1,11 @@
 """Accessibility for one scenario: every populated H3 cell to every facility category, both modes.
 
-Time from a cell = walk from cell centre to its nearest network node
-                 + network time to the facility's node
-                 + walk from that node to the facility.
-Dijkstra runs on the reversed graph from the facilities, so one run gives every cell.
+Time from a cell = walk from the cell centre to a street node
+                 + network time to a street node next to the facility
+                 + walk from there to the facility,
+minimised over the street nodes each end links to (see Network.snap_multi). The links are
+fixed by the factual city, so closing a road can only lengthen times and adding one can only
+shorten them. Dijkstra runs on the reversed graph from the facilities, so one run gives every cell.
 """
 
 import time
@@ -45,35 +47,42 @@ class Engine:
 
     def _cell_snap(self, net: Network):
         if net.mode not in self._snap:  # nodes never change, so one snap per mode
-            pos, d = net.snap(self.cells.x.to_numpy(), self.cells.y.to_numpy())
+            pos, d = net.snap_multi(self.cells.x.to_numpy(), self.cells.y.to_numpy())
             self._snap[net.mode] = (pos, d / WALK_MPS)
         return self._snap[net.mode]
 
     def _one(self, net: Network, mat: csr_matrix, fac: pd.DataFrame) -> pd.DataFrame:
         n = len(net.nodes)
-        cell_pos, cell_acc = self._cell_snap(net)
+        cell_pos, cell_acc = self._cell_snap(net)  # (cells, K)
         out = pd.DataFrame(index=self.cells.index)
         if fac.empty:
             out["time_min"], out["cum"], out["sfca"] = np.inf, 0, 0.0
             return out
-        f_pos, f_d = net.snap(fac.x.to_numpy(), fac.y.to_numpy())
-        f_acc = f_d / WALK_MPS
+        f_pos, f_d = net.snap_multi(fac.x.to_numpy(), fac.y.to_numpy())
+        f_acc = f_d / WALK_MPS  # (facilities, K)
 
-        # Nearest: super source linked to each facility node at its access cost.
-        best = pd.Series(f_acc).groupby(f_pos).min()
-        sup = csr_matrix((best.to_numpy() + 1e-6, (np.full(len(best), n), best.index.to_numpy())), shape=mat.shape)
-        d = dijkstra(mat + sup, indices=n)
-        out["time_min"] = (d[cell_pos] + cell_acc) / 60
+        # One virtual node per facility, linked to its street nodes at walking cost, and a super
+        # source (node n) linked to every facility. Rows are "from" in the reversed graph.
+        nf = len(fac)
+        fr, fk = np.nonzero(np.isfinite(f_acc))
+        base = mat.tocoo()
+        rows_ = np.r_[base.row, n + 1 + fr, np.full(nf, n)]
+        cols_ = np.r_[base.col, f_pos[fr, fk], n + 1 + np.arange(nf)]
+        vals_ = np.r_[base.data, f_acc[fr, fk] + 1e-6, np.full(nf, 1e-6)]
+        aug = csr_matrix((vals_, (rows_, cols_)), shape=(n + 1 + nf, n + 1 + nf))
+
+        d = dijkstra(aug, indices=n)
+        out["time_min"] = (d[cell_pos] + cell_acc).min(axis=1) / 60
 
         # Catchments: facility x cell travel times up to the threshold.
         lim = CATCHMENT_MIN[net.mode] * 60
-        rows, cols, vals = [], [], []
-        for i in range(0, len(fac), CHUNK):
-            sl = slice(i, i + CHUNK)
-            m = dijkstra(mat, indices=f_pos[sl], limit=lim)[:, cell_pos]
-            t = m + f_acc[sl, None] + cell_acc[None, :]
+        rows, cols = [], []
+        for i in range(0, nf, CHUNK):
+            src = n + 1 + np.arange(i, min(i + CHUNK, nf))
+            g = dijkstra(aug, indices=src, limit=lim)
+            t = (g[:, cell_pos] + cell_acc[None]).min(axis=2)  # facility -> cell
             r, c = np.nonzero(t <= lim)
-            rows.append(r + i), cols.append(c), vals.append(t[r, c])
+            rows.append(r + i), cols.append(c)
         r, c = np.concatenate(rows), np.concatenate(cols)
         reach = csr_matrix((np.ones(len(r)), (r, c)), shape=(len(fac), len(self.cells)))
         out["cum"] = np.asarray(reach.sum(axis=0)).ravel().astype(int)

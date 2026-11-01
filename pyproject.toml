@@ -17,6 +17,10 @@ dependencies = [
     "python-igraph>=1.0.0",
     "osmium>=4.3.2",
     "pydantic>=2.14.2",
+    "langgraph>=1.2.19",
+    "langchain>=1.4.7",
+    "langchain-google-genai>=4.4.2",
+    "python-dotenv>=1.2.4",
 ]
 
 [dependency-groups]

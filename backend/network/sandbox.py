@@ -20,6 +20,8 @@ class Scenario:
 
 class ScenarioTree:
     def __init__(self, networks: dict[str, Network], facilities: pd.DataFrame):
+        for n in networks.values():
+            n.tree  # snapping is fixed by the factual city and shared by every branch
         self.nodes: dict[str, Scenario] = {
             "factual": Scenario("factual", None, [], networks, facilities)
         }

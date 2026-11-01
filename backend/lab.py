@@ -10,6 +10,7 @@ import pandas as pd
 from backend.metrics.accessibility import Engine, Metrics
 from backend.metrics.compare import commune_of, compare
 from backend.network.model import CRS, DATA, MODES, load_cells, load_communes, load_facilities, load_network
+from backend.geocode.local import LocalIndex
 from backend.network.sandbox import ScenarioTree
 
 
@@ -22,6 +23,7 @@ class Lab:
         self.tree = ScenarioTree({m: load_network(m) for m in MODES}, load_facilities())
         self.engine = Engine(self.cells)
         self.metrics: dict[str, Metrics] = {}
+        self._comparisons: dict[tuple, dict] = {}
         cached = DATA / f"factual_r{h3_res}.parquet"
         f = self.tree.factual
         if cached.exists():
@@ -54,5 +56,14 @@ class Lab:
             self.metrics[sid] = self.engine.compute(s.networks, s.facilities)
         return self.metrics[sid]
 
-    def compare(self, sid: str, base: str = "factual") -> dict:
-        return compare(self.metrics_for(base), self.metrics_for(sid), self.cells, self.cells["commune"])
+    @cached_property
+    def index(self) -> LocalIndex:
+        f = self.tree.factual
+        return LocalIndex(f.facilities, self.communes, f.networks["drive"].edges, f.networks["drive"].nodes)
+
+    def comparison(self, sid: str, base: str = "factual") -> dict:
+        key = (sid, base)
+        if key not in self._comparisons:
+            self._comparisons[key] = compare(self.metrics_for(base), self.metrics_for(sid), self.cells,
+                                             self.cells["commune"])
+        return self._comparisons[key]

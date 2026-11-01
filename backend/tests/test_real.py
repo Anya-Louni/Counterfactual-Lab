@@ -75,11 +75,13 @@ def test_matches_networkx(lab, base):
     for mode in ("drive", "walk"):
         net = s.networks[mode]
         fac = s.facilities[s.facilities.category == CAT]
-        f_pos, f_d = net.snap(fac.x.to_numpy(), fac.y.to_numpy())
+        f_pos, f_d = net.snap_multi(fac.x.to_numpy(), fac.y.to_numpy())
         g = nx.DiGraph()
         for u, v, w in net.edges.groupby(["u", "v"])["travel_time"].min().reset_index().itertuples(index=False):
             g.add_edge(v, u, weight=max(w, 1e-6))  # reversed, as in the engine
-        for p, d in zip(f_pos, f_d):
+        for p, d in zip(f_pos.ravel(), f_d.ravel()):
+            if not np.isfinite(d):
+                continue
             node = net.nodes.index[p]
             w = d / WALK_MPS + 1e-6
             if not g.has_edge("SRC", node) or g["SRC"][node]["weight"] > w:
@@ -87,5 +89,6 @@ def test_matches_networkx(lab, base):
         dist = nx.single_source_dijkstra_path_length(g, "SRC")
         cell_pos, cell_acc = lab.engine._cell_snap(net)
         sample = rng.choice(len(lab.cells), 300, replace=False)
-        ref = np.array([(dist.get(net.nodes.index[cell_pos[i]], np.inf) + cell_acc[i]) / 60 for i in sample])
+        ref = np.array([min(dist.get(net.nodes.index[p], np.inf) + a for p, a in zip(cell_pos[i], cell_acc[i])) / 60
+                        for i in sample])
         assert np.allclose(base[mode][sample], ref, atol=1e-6)
