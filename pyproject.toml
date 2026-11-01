@@ -1,0 +1,29 @@
+[project]
+name = "counterfactual-lab"
+version = "0.1.0"
+description = "Ask what-if questions about access to services in Algiers and get computed answers."
+requires-python = ">=3.11"
+dependencies = [
+    "osmnx>=2.0",
+    "networkx>=3.3",
+    "geopandas>=1.0",
+    "shapely>=2.0",
+    "rasterio>=1.4",
+    "h3>=4.1",
+    "pyarrow>=17",
+    "scipy>=1.13",
+    "requests>=2.32",
+    "pandana>=0.8",
+    "python-igraph>=1.0.0",
+    "osmium>=4.3.2",
+    "pydantic>=2.14.2",
+]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.11.2",
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
