@@ -2,6 +2,8 @@
 
 Ask a what-if question about Algiers in plain language. The agent turns it into a list of edits to a sandboxed copy of the city, shows you the plan, and after you approve it computes access to hospitals, clinics, pharmacies and schools for the real city and the changed one. It then explains who gains, who loses, by how much, and whether access becomes more or less equal.
 
+Live: https://counterfactual-lab-omega.vercel.app (API on a free server, so the first request after a quiet spell can take a minute to wake it).
+
 The LLM plans and explains. Code computes. Every number in the explanation is checked against stored results before you see it. The real city is never modified.
 
 ![Travel time to the nearest hospital](docs/img/factual_hospital.png)
@@ -109,6 +111,8 @@ Measured on the same laptop after caching:
 
 Results are cached per network state and facility set, so only what an edit touches is recomputed.
 
+The live demo runs on Render's free tier (0.15 CPU, 512 MB). There a facility scenario takes about 35 s to plan and 35 s to compute; a road edit takes a few minutes. Peak memory is about 450 MB.
+
 ## Limitations
 
 - **OSM completeness.** Facilities are what volunteers mapped. Some clinics and pharmacies are missing; some points are departments, not facilities. Names are often missing (342 of 757 pharmacies have one).
@@ -129,6 +133,8 @@ cp .env.example .env                       # add a model key
 uv run uvicorn backend.api.app:app --port 8000
 cd frontend && npm install && npm run dev  # http://localhost:3000
 ```
+
+Deploy: the `Dockerfile` builds the API and pulls the runtime data from the `data-2026-10-31` release. The frontend needs `NEXT_PUBLIC_API_URL`, and the API needs `ALLOWED_ORIGINS` set to the frontend's URL.
 
 `LAB_MODEL` takes any LangChain `init_chat_model` string, for example `google_genai:gemini-3.1-flash-lite`. Install the matching provider package. Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` to trace runs.
 
