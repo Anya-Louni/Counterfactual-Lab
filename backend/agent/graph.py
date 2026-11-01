@@ -51,9 +51,12 @@ class LabState(TypedDict, total=False):
 
 def default_model():
     from langchain.chat_models import init_chat_model
-    main = init_chat_model(os.environ.get("LAB_MODEL", "google_genai:gemini-3.1-flash-lite"), temperature=0)
+    # Few retries on the main model: when the provider is busy, switching to the fallback is
+    # faster than backing off six times.
+    main = init_chat_model(os.environ.get("LAB_MODEL", "google_genai:gemini-3.1-flash-lite"), temperature=0,
+                           max_retries=1, timeout=30)
     fb = os.environ.get("LAB_FALLBACK_MODEL")
-    return (main, init_chat_model(fb, temperature=0)) if fb else (main, None)
+    return (main, init_chat_model(fb, temperature=0, max_retries=2, timeout=60)) if fb else (main, None)
 
 
 def _emit(**kw):

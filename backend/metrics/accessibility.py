@@ -100,7 +100,10 @@ class Engine:
             nkey = _fingerprint(networks[mode].edges, ["u", "v", "travel_time"])
             for cat in CATEGORIES:
                 fac = facilities[facilities.category == cat]
-                out[(mode, cat)] = (mode, nkey, _fingerprint(fac, ["x", "y", "capacity"]))
+                # lon/lat come straight from the data file, so the key is the same on every
+                # platform; projected x/y can differ in the last bit between PROJ builds.
+                out[(mode, cat)] = (mode, nkey, _fingerprint(fac[["lon", "lat", "capacity"]].round(7),
+                                                             ["lon", "lat", "capacity"]))
         return out
 
     def seed(self, networks, facilities, metrics: Metrics) -> None:
