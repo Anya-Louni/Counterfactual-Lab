@@ -18,6 +18,22 @@ class Problem(BaseModel):
     message: str
 
 
+def _cut_off_share(m) -> float:
+    _, lab = connected_components(m, directed=True, connection="strong")
+    return 1 - np.bincount(lab).max() / len(lab)
+
+
+_BASE: dict[int, tuple] = {}  # id(edges) -> (edges, share); holding edges keeps the id from being reused
+
+
+def _base_share(net) -> float:
+    """Share of nodes outside the main component before the edit, cached per edges table."""
+    key = id(net.edges)
+    if key not in _BASE or _BASE[key][0] is not net.edges:
+        _BASE[key] = (net.edges, _cut_off_share(net.reversed_matrix()))
+    return _BASE[key][1]
+
+
 def validate(plan_edits: list, tree: ScenarioTree, parent_id: str, boundary_utm) -> list[Problem]:
     parent = tree.nodes[parent_id]
     out: list[Problem] = []
@@ -56,16 +72,16 @@ def validate(plan_edits: list, tree: ScenarioTree, parent_id: str, boundary_utm)
 
     if any(p.severity == "error" for p in out):
         return out
+    if not any(isinstance(e, (AddRoad, RemoveRoad, ChangeSpeed)) for e in plan_edits):
+        return out  # facility edits cannot cut the network
 
     # Connectivity: apply to a throwaway branch and measure what falls off the main component.
     trial = tree.branch(parent_id, plan_edits)
     try:
         for mode, net in trial.networks.items():
             m = net.reversed_matrix()
-            _, lab = connected_components(m, directed=True, connection="strong")
-            share = 1 - np.bincount(lab).max() / len(lab)
-            _, lab0 = connected_components(parent.networks[mode].reversed_matrix(), directed=True, connection="strong")
-            base = 1 - np.bincount(lab0).max() / len(lab0)
+            share = _cut_off_share(m)
+            base = _base_share(parent.networks[mode])
             if share - base > DISCONNECT_WARN:
                 add(-1, "warning", f"{mode}: {100 * (share - base):.1f}% of network nodes become unreachable")
     finally:

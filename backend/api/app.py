@@ -35,6 +35,7 @@ LOCK = threading.Lock()  # one run at a time: the scenario tree and metric cache
 async def lifespan(app: FastAPI):
     load_dotenv()
     lab = Lab()
+    lab.index  # build the place index now, not on the first question
     STATE["lab"] = lab
     STATE["graph"] = build(lab)
     STATE["runs"] = {}  # scenario id -> final agent state
