@@ -76,7 +76,7 @@ Speeds: driving uses OSMnx speed imputation (posted `maxspeed`, else the mean fo
 `uv run pytest` runs 23 tests.
 
 - **Hand-built network** (`backend/tests/toy.py`): a line of nodes 1 km apart where every time can be worked out by hand. One test per edit type, plus scenario chaining, validation messages, the factual city never changing, copy-on-write, re-linking cut-off cells, 2SFCA values and Gini on known inputs.
-- **Real data properties**: adding a hospital never slows any cell; removing one never speeds any cell; adding a road never slows any cell; removing five motorway ways never speeds any cell.
+- **Real data properties**: adding a hospital never slows any cell; removing one never speeds any cell; adding a road never slows any cell; closing every motorway never speeds any cell.
 - **Cross-check**: travel times for 300 random cells per mode match NetworkX Dijkstra on the same graph exactly.
 - **Agent**: with a scripted model, a full run through the interrupt, a repair round, cancel, a plan that cannot be repaired, and the number check rejecting an invented figure.
 - **API**: ask, confirm, metrics, compare, edit geometry, isochrone and scenario tree over HTTP.

@@ -23,7 +23,7 @@ from .equity import weighted_gini, weighted_quantile
 
 THRESHOLDS_MIN = (10, 15, 30)
 CATCHMENT_MIN = {"drive": 15, "walk": 15}  # 2SFCA and cumulative-opportunity threshold
-CHUNK = 64
+CHUNK = 32  # facilities per Dijkstra batch; bounds peak memory
 
 
 @dataclass

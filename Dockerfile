@@ -2,6 +2,8 @@ FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+# Fewer malloc arenas and the system allocator for Arrow keep memory under the 512 MB free tier.
+ENV MALLOC_ARENA_MAX=2 ARROW_DEFAULT_MEMORY_POOL=system
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY backend backend

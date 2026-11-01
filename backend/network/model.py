@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
+from pyproj import Transformer
 from scipy.spatial import cKDTree
 
 DATA = Path(__file__).resolve().parents[2] / "data"
@@ -20,6 +21,7 @@ SNAP_K = 4  # a cell or facility links to up to 4 street nodes,
 SNAP_RADIUS_M = 300  # those within 300 m, and always the nearest one,
 MAX_NEAREST_M = 1000  # unless even the nearest is over 1 km away: then it has no road access
 HOSPITAL_MERGE_M = 250  # OSM maps many hospital departments as separate hospitals
+TO_UTM = Transformer.from_crs(4326, CRS, always_xy=True)
 
 
 @dataclass
@@ -78,14 +80,17 @@ def edge_id(u, v, k) -> str:
 
 
 def load_network(mode: str) -> Network:
-    nodes = gpd.read_parquet(DATA / f"{mode}_nodes.parquet")
-    xy = nodes.to_crs(CRS).geometry
-    nodes = pd.DataFrame({"x": xy.x, "y": xy.y, "lon": nodes.x, "lat": nodes.y}, index=nodes.index)
-    e = gpd.read_parquet(DATA / f"{mode}_edges.parquet").reset_index()
+    # Plain columns only: road geometries are not needed for routing and cost a lot of memory.
+    nodes = pd.read_parquet(DATA / f"{mode}_nodes.parquet", columns=["x", "y"])
+    x, y = TO_UTM.transform(nodes.x.to_numpy(), nodes.y.to_numpy())
+    nodes = pd.DataFrame({"x": x, "y": y, "lon": nodes.x.to_numpy(), "lat": nodes.y.to_numpy()}, index=nodes.index)
+    e = pd.read_parquet(DATA / f"{mode}_edges.parquet",
+                        columns=["length", "speed_kph", "travel_time", "name", "highway", "osmid"]).reset_index()
     edges = pd.DataFrame({
         "u": e["u"].to_numpy(), "v": e["v"].to_numpy(), "length": e["length"].to_numpy(),
         "speed_kph": e["speed_kph"].to_numpy(), "travel_time": e["travel_time"].to_numpy(),
-        "name": e["name"].replace("nan", None).to_numpy(), "highway": e["highway"].to_numpy(),
+        "name": pd.Categorical(e["name"].replace("nan", None)),
+        "highway": pd.Categorical(e["highway"]),
         "osmid": [tuple(int(t) for t in re.findall(r"\d+", s)) for s in e["osmid"].astype(str)],
     }, index=[edge_id(u, v, k) for u, v, k in zip(e.u, e.v, e.key)])
     return Network(mode, nodes, edges)

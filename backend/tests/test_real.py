@@ -64,8 +64,8 @@ def test_adding_road_never_slows(lab, base):
 
 def test_removing_road_never_speeds(lab, base):
     e = lab.tree.factual.networks["drive"].edges
-    busiest = e[e.highway.astype(str).str.contains("motorway")].osmid.explode().value_counts().index[:5]
-    check(lab, base, [RemoveRoad(way_ids=[int(w) for w in busiest])], +1)
+    motorways = sorted({w for ids in e[e.highway.astype(str).str.contains("motorway")].osmid for w in ids})
+    check(lab, base, [RemoveRoad(way_ids=motorways)], +1)
 
 
 def test_matches_networkx(lab, base):

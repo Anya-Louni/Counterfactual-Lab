@@ -1,5 +1,7 @@
 """Loads the cached city once and holds everything a session needs."""
 
+import ctypes
+import gc
 import json
 import threading
 import time
@@ -13,6 +15,15 @@ from backend.metrics.compare import commune_of, compare
 from backend.network.model import CRS, DATA, MODES, load_cells, load_communes, load_facilities, load_network
 from backend.geocode.local import LocalIndex
 from backend.network.sandbox import ScenarioTree
+
+
+def trim_memory() -> None:
+    """Hand freed memory back to the OS (glibc only). Keeps the server inside a 512 MB limit."""
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:  # not Linux
+        pass
 
 
 class Lab:
@@ -36,6 +47,7 @@ class Lab:
                 self.engine.seed(f.networks, f.facilities, m)
                 self.metrics["factual"] = m
         self.load_s = round(time.perf_counter() - t, 1)
+        trim_memory()
 
     def factual_keys(self) -> list[str]:
         f = self.tree.factual
@@ -60,6 +72,7 @@ class Lab:
         if sid not in self.metrics:
             s = self.tree.nodes[sid]
             self.metrics[sid] = self.engine.compute(s.networks, s.facilities)
+            trim_memory()
         return self.metrics[sid]
 
     @cached_property
