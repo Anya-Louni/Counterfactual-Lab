@@ -134,6 +134,19 @@ const MapView = forwardRef<MapHandle, Props>(function MapView(p, ref) {
     }
   }, [p.placing]);
 
+  // Fly to the edited area when a scenario's edits arrive.
+  useEffect(() => {
+    const l = maps.current.l;
+    const feats = p.edits?.features ?? [];
+    if (!l || !feats.length) return;
+    const pts: number[][] = feats.flatMap((f: any) =>
+      f.geometry.type === "Point" ? [f.geometry.coordinates] : f.geometry.coordinates);
+    const xs = pts.map((c) => c[0]);
+    const ys = pts.map((c) => c[1]);
+    l.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]],
+      { padding: 140, maxZoom: 13, duration: 1400 });
+  }, [p.edits]);
+
   // Layers.
   useEffect(() => {
     const { ol, or } = maps.current;

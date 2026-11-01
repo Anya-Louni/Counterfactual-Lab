@@ -8,6 +8,22 @@ The LLM plans and explains. Code computes. Every number in the explanation is ch
 
 ![Travel time to the nearest hospital](docs/img/factual_hospital.png)
 
+## Three demos
+
+Recorded from the running app with `scripts/record_demos.py`. Each one: ask, approve the plan, watch the reach of the change grow, swipe between the real city and the scenario, then the difference map (blue faster, orange slower).
+
+**A new clinic near Baraki.** Walking access to a clinic, 13,237 people faster, nobody slower.
+
+![New clinic near Baraki](docs/img/demo_clinic.gif)
+
+**Closing the main hospital in Bab El Oued** (CHU Mohamed Lamine Debaghine). Walking access to a hospital: 24,964 people slower, 4,338 no longer within 15 minutes, up to 12.1 minutes more.
+
+![Hospital closure in Bab El Oued](docs/img/demo_hospital.gif)
+
+**Closing Rue Hassiba Ben Bouali to cars.** Driving access to a hospital: 10,284 people slower, mostly in Sidi M'Hamed and Belouizdad. Walking is untouched.
+
+![Road closure](docs/img/demo_road.gif)
+
 ## What you can ask
 
 - "What if a new clinic opened near Baraki?"
