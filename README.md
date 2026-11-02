@@ -20,7 +20,7 @@ Recorded from the running app with `scripts/record_demos.py`. Each one: ask, app
 
 ![Hospital closure in Bab El Oued](docs/img/demo_hospital.gif)
 
-**Closing Rue Hassiba Ben Bouali to cars.** Driving access to a hospital: 10,284 people slower and 1,781 no longer within 15 minutes, mostly in Sidi M'Hamed and Belouizdad. The agent closes every segment and spelling of the street, for cars only. Walking is untouched.
+**Closing Rue Hassiba Ben Bouali to cars.** The agent closes every segment and spelling of the street, for cars only; walking is untouched. The map shows the layer that changes most, clinics by car: 11,185 people slower and 1,781 no longer within 15 minutes, mostly in Sidi M'Hamed, Belouizdad and Alger-Centre. For hospitals by car it is 10,284 slower and 1,781.
 
 ![Road closure](docs/img/demo_road.gif)
 

@@ -63,7 +63,7 @@ def click_text(page: Page, text: str):
 
 def demo(page: Page, name: str, question: str, mode: str, category: str):
     page.goto(URL)
-    page.wait_for_selector("canvas.maplibregl-canvas")
+    page.wait_for_selector("canvas.maplibregl-canvas", timeout=120_000)
     page.get_by_text("Within 15 min").wait_for(timeout=60_000)
     click_text(page, mode)
     click_text(page, category)
