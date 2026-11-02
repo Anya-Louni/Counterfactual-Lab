@@ -56,10 +56,11 @@ class RemoveRoad(RoadSelection):
     modes: list[Mode] = ["drive", "walk"]
 
 
-class ChangeSpeed(RoadSelection):
-    """Driving only. Proxy for a road upgrade or a bus corridor."""
-    op: Literal["change_speed"] = "change_speed"
-    factor: float | None = Field(None, gt=0, le=5)
+class RoadSpeedUpgrade(RoadSelection):
+    """Driving only. Raises the speed on a road or area (widening, resurfacing, a new grade
+    separation). Speeds never go down: a target speed below the current one leaves that edge as is."""
+    op: Literal["road_speed_upgrade"] = "road_speed_upgrade"
+    factor: float | None = Field(None, gt=1, le=5)
     speed_kph: float | None = Field(None, gt=0, le=130)
 
     @model_validator(mode="after")
@@ -69,7 +70,7 @@ class ChangeSpeed(RoadSelection):
         return self
 
 
-Edit = Annotated[AddFacility | RemoveFacility | AddRoad | RemoveRoad | ChangeSpeed, Field(discriminator="op")]
+Edit = Annotated[AddFacility | RemoveFacility | AddRoad | RemoveRoad | RoadSpeedUpgrade, Field(discriminator="op")]
 
 
 class EditPlan(BaseModel):
@@ -138,14 +139,15 @@ def apply_edit(edit, networks: dict[str, Network], facilities: pd.DataFrame) -> 
             notes.append(f"{mode}: {len(ids)} edges removed")
         return facilities, "closed road; " + "; ".join(notes)
 
-    if isinstance(edit, ChangeSpeed):
+    if isinstance(edit, RoadSpeedUpgrade):
         net = networks["drive"]
         ids = select_edges(net, edit)
         e = net.edges.copy()  # never write into a table a parent scenario may share
-        new_speed = e.loc[ids, "speed_kph"] * edit.factor if edit.factor else edit.speed_kph
+        old = e.loc[ids, "speed_kph"]
+        new_speed = old * edit.factor if edit.factor else np.maximum(old, edit.speed_kph)
         e.loc[ids, "speed_kph"] = new_speed
         e.loc[ids, "travel_time"] = e.loc[ids, "length"] / (e.loc[ids, "speed_kph"] / 3.6)
         net.edges = e
-        return facilities, f"drive: speed changed on {len(ids)} edges"
+        return facilities, f"drive: speed upgraded on {len(ids)} edges"
 
     raise TypeError(f"unknown edit {edit!r}")

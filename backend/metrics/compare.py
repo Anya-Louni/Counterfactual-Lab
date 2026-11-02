@@ -33,7 +33,7 @@ def compare(fact: Metrics, cf: Metrics, cells: pd.DataFrame, commune: pd.Series)
                 continue
             s = {}
             for key in ("pop_within_10", "pop_within_15", "pop_within_30", "median_min", "mean_min",
-                        "gini", "p90_p10", "mean_cum", "mean_sfca", "pop_unreachable"):
+                        "gini", "p90_p10", "mean_cum", "sfca_median", "sfca_gini", "pop_unreachable"):
                 fa, cb = fact.summary.get(f"{k}.{key}"), cf.summary.get(f"{k}.{key}")
                 if fa is not None and cb is not None:
                     s[key] = {"factual": fa, "counterfactual": cb, "change": round(cb - fa, 3)}

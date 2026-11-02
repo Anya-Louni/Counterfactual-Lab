@@ -21,7 +21,7 @@ def lab():
 def hosp_times(lab, scenario, mode):
     net = scenario.networks[mode]
     fac = scenario.facilities[scenario.facilities.category == CAT]
-    return lab.engine._one(net, net.reversed_matrix(extra_nodes=1), fac)["time_min"].to_numpy()
+    return lab.engine._one(net, net.reversed_matrix(extra_nodes=1), fac, CAT)["time_min"].to_numpy()
 
 
 @pytest.fixture(scope="module")

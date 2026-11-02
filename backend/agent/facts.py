@@ -3,7 +3,7 @@
 from backend.metrics.accessibility import THRESHOLDS_MIN
 from backend.network.edits import AddFacility, RemoveFacility
 
-KEEP = ("pop_within_15", "median_min", "gini", "p90_p10", "mean_sfca", "pop_unreachable")
+KEEP = ("pop_within_15", "median_min", "gini", "p90_p10", "sfca_median", "sfca_gini", "pop_unreachable")
 MAX_KEYS = 4
 
 

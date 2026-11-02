@@ -12,7 +12,7 @@ The LLM plans and explains. Code computes. Every number in the explanation is ch
 
 Recorded from the running app with `scripts/record_demos.py`. Each one: ask, approve the plan, watch the reach of the change grow, swipe between the real city and the scenario, then the difference map (blue faster, orange slower).
 
-**A new clinic near Baraki.** Walking access to a clinic, 13,237 people faster, nobody slower.
+**A new clinic near Baraki.** Walking access to a clinic: 13,237 people faster, nobody slower, up to 4.4 minutes saved.
 
 ![New clinic near Baraki](docs/img/demo_clinic.gif)
 
@@ -32,7 +32,7 @@ Recorded from the running app with `scripts/record_demos.py`. Each one: ask, app
 - "What if a road connected these two pins?" (drop pins on the map first)
 - "Now also close this road" (builds on the scenario you are looking at)
 
-Five edit types: open a facility, close a facility, add a road, close a road or an area, change driving speed on a road or area (a proxy for a road upgrade or a bus corridor). Two modes: driving and walking.
+Five edit types: open a facility, close a facility, add a road, close a road or an area, upgrade driving speed on a road or area (road speed upgrade). Two modes: driving and walking.
 
 ## How it works
 
@@ -44,7 +44,7 @@ question
                  removed roads exist, nothing large gets cut off. One repair round.
   -> confirm     LangGraph interrupt. You approve, edit or cancel the plan.
   -> apply       copy-on-write branch of the scenario tree
-  -> compute     travel times, coverage, 2SFCA, equity for every populated H3 cell
+  -> compute     travel times, coverage, E2SFCA, equity for every populated H3 cell
   -> compare     per-cell change, summary deltas, communes that gain and lose
   -> narrate     LLM writes 4 to 6 sentences. Any number not in the computed facts is
                  rejected and the LLM rewrites once; after that a plain template is used.
@@ -69,7 +69,7 @@ Notes from checking the data:
 - A name search for "Algiers Province" in Nominatim returns the wilaya office building, so the boundary is pinned by relation id and the fetch fails if the area is under 500 km².
 - The public Overpass servers were overloaded or refusing requests during development, so OSM data comes from a pinned Geofabrik extract parsed locally with pyosmium. The graphs go through the same build steps as `ox.graph_from_polygon`.
 - OSM maps many hospital departments as separate hospitals ("urgences pédiatriques", "consultation d'hématologie"). Hospital points within 250 m are merged into one: 123 points become 85.
-- No hospital in the data has a `beds` tag, so 2SFCA uses equal capacity for every facility.
+- No hospital in the data has a `beds` tag, so E2SFCA uses equal capacity for every facility.
 - Communes cover 743.6 of 770.9 km². About 112,000 people live in cells outside any commune polygon and are assigned to the nearest commune. Algiers has 57 communes; one is missing from OSM.
 
 Metric work uses EPSG:32631 (WGS 84 / UTM 31N).
@@ -80,12 +80,18 @@ For each populated H3 cell, each facility type and each mode:
 
 - travel time to the nearest facility
 - people within 10, 15 and 30 minutes
-- number of facilities within 15 minutes (cumulative opportunities)
-- 2SFCA with a 15 minute catchment, per 10,000 people
+- number of facilities within the catchment (cumulative opportunities)
+- enhanced 2SFCA (E2SFCA) with Gaussian distance decay, per 10,000 people, summarised by its population-weighted median and Gini. The population-weighted mean is not reported: for any 2SFCA it equals total supply over total population, so it cannot show who gains or loses
 - population-weighted Gini of travel time and the 90th / 10th percentile ratio
 - per-cell change, people gaining and losing, communes gaining and losing most
 
 Travel time = walk from the cell centre to a street node + network time + walk from a street node to the facility. Each cell and facility links to up to four street nodes: the nearest, plus any within 300 m. The best one is used. Links are fixed by the real city, so closing a road can only lengthen trips and adding one can only shorten them. Motorway nodes are not used for access. A cell more than 1 km from any road counts as unreachable (4,228 people for driving, 1,765 for walking).
+
+E2SFCA follows Luo and Qi (2009) with the Gaussian weight of Dai (2010): inside a catchment of d0 minutes, a trip of t minutes has weight (exp(-0.5 (t/d0)²) − exp(-0.5)) / (1 − exp(-0.5)), which is 1 at the door and 0 at the edge. The catchment is 30 minutes for hospitals by car and 15 minutes for everything else (walking, and clinics, pharmacies and schools by car). Every facility has the same capacity (see Limitations).
+
+Sensitivity: rerunning the three demos with every catchment set to 10, 15, 20 and 30 minutes (`scripts/demo_numbers.py --sensitivity`, results in `docs/sensitivity.json`) leaves the headline results unchanged: the same people get faster or slower trips at every catchment and the E2SFCA Gini moves in the same direction; only the median E2SFCA score of the road closure changes sign, from a fall below 0.001 at 10 to 20 minutes to a rise below 0.001 at 30.
+
+Snapping: cells use H3 resolution 9 (201 m edge). The distance from a cell centre to its nearest street node is 110 m median and 615 m at the 95th percentile for driving, and 80 m and 445 m for walking. Weighted by population, the same figures are 43 m and 204 m for driving, and 36 m and 130 m for walking.
 
 Speeds: driving uses OSMnx speed imputation (posted `maxspeed`, else the mean for that road class, e.g. 30.9 km/h for residential). Walking is 4.5 km/h everywhere.
 
@@ -93,7 +99,7 @@ Speeds: driving uses OSMnx speed imputation (posted `maxspeed`, else the mean fo
 
 `uv run pytest` runs 23 tests.
 
-- **Hand-built network** (`backend/tests/toy.py`): a line of nodes 1 km apart where every time can be worked out by hand. One test per edit type, plus scenario chaining, validation messages, the factual city never changing, copy-on-write, re-linking cut-off cells, 2SFCA values and Gini on known inputs.
+- **Hand-built network** (`backend/tests/toy.py`): a line of nodes 1 km apart where every time can be worked out by hand. One test per edit type, plus scenario chaining, validation messages, the factual city never changing, copy-on-write, re-linking cut-off cells, E2SFCA values and Gaussian weights, and Gini on known inputs.
 - **Real data properties**: adding a hospital never slows any cell; removing one never speeds any cell; adding a road never slows any cell; closing every motorway never speeds any cell.
 - **Cross-check**: travel times for 300 random cells per mode match NetworkX Dijkstra on the same graph exactly.
 - **Agent**: with a scripted model, a full run through the interrupt, a repair round, cancel, a plan that cannot be repaired, and the number check rejecting an invented figure.
@@ -133,11 +139,14 @@ The live demo runs on Render's free tier (0.15 CPU, 512 MB). There a facility sc
 
 - **OSM completeness.** Facilities are what volunteers mapped. Some clinics and pharmacies are missing; some points are departments, not facilities. Names are often missing (342 of 757 pharmacies have one).
 - **No traffic.** Driving times are free flow. Real peak-hour times in Algiers are much longer, so driving access is optimistic.
-- **No capacity data.** 2SFCA treats every facility of a type as equal. A university hospital and a small polyclinic count the same.
+- **No capacity data.** E2SFCA treats every facility of a type as equal. A university hospital and a small polyclinic count the same.
 - **Speed assumptions.** Imputed speeds by road class, one walking speed for everyone, no slopes, no crossings.
-- **A bus line is only a speed change.** There are no stops, headways or waiting times.
 - **Population** is a modelled 2025 estimate, not a census.
 - **Nearest facility only** for travel time. People do not always go to the nearest one.
+
+## Future work
+
+- A public transport layer (bus and tram lines with stops, headways and waiting time). The road speed upgrade edit only changes car speeds and does not model transit.
 
 ## Run it
 
@@ -166,7 +175,7 @@ uv run python scripts/run_scenario.py "What if a new clinic opened near Baraki?"
 backend/
   agent/     LangGraph graph, plan schema, prompts, number check, fact sheet
   network/   loading, edits, scenario tree, validation
-  metrics/   travel times, 2SFCA, equity, comparison
+  metrics/   travel times, E2SFCA, equity, comparison
   geocode/   local name search, rate-limited Nominatim
   api/       FastAPI with server-sent events
   tests/

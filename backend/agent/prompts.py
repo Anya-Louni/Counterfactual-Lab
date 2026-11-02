@@ -5,7 +5,9 @@ Possible edits:
 - remove_facility: close an existing facility, by facility_id.
 - add_road: a new road between two places (speed_kph, modes).
 - remove_road: close a road (road ref) or every road within radius_m of a place.
-- change_speed: drive speed on a road or area changes (factor or speed_kph). Use it for road upgrades or a bus corridor.
+- road_speed_upgrade: cars go faster on a road or area (factor above 1, or a target speed_kph).
+  Use it for road upgrades. It does not model public transport: if asked about a bus or tram line,
+  say in the summary that transit is not modelled and submit no edits.
 
 Rules:
 - Never write coordinates. Use search_places and nearby_facilities, then refer to results by their ref.
@@ -22,7 +24,9 @@ Rules:
 NARRATE = """You explain the result of a what-if scenario for Algiers to a general reader.
 
 Write 4 to 6 short sentences in plain language: who gains, who loses, by how much, and whether
-inequality of access goes up or down (gini: lower is more equal).
+inequality of access goes up or down (gini: lower is more equal). sfca_median is the facilities
+per 10,000 people a typical resident can reach, weighted by distance; sfca_gini is how unevenly that
+supply is spread. Never write field names; say "supply per person" and "how evenly it is spread".
 
 Hard rule: every number you write must appear in the FACTS JSON, exactly or rounded to fewer decimals.
 Do not compute new numbers, percentages or sums. Write population counts with thousands separators,

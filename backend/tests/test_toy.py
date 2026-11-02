@@ -8,7 +8,7 @@ import shapely
 
 from backend.metrics.accessibility import Engine
 from backend.metrics.equity import weighted_gini, weighted_quantile
-from backend.network.edits import AddFacility, AddRoad, ChangeSpeed, RemoveFacility, RemoveRoad
+from backend.network.edits import AddFacility, AddRoad, RoadSpeedUpgrade, RemoveFacility, RemoveRoad
 from backend.network.sandbox import ScenarioTree
 from backend.network.validate import validate
 
@@ -37,11 +37,15 @@ def test_factual(tree):
     assert close(t, [0, 100, 200, 300, INF])
     w, _ = times(tree, "factual", "walk")
     assert close(w, [0, 800, 1600, 2400, INF])
-    # 15 min drive catchment holds A to D: demand 1000, supply 1, so 10 per 10,000 people.
+    # Drive hospital catchment is 30 min and holds A to D. E2SFCA by hand: weights G(t),
+    # demand = sum(pop * G), each cell gets G(t) / demand per 10,000 people.
     assert list(m.cells["drive.hospital.cum"]) == [1, 1, 1, 1, 0]
-    assert np.allclose(m.cells["drive.hospital.sfca"], [10, 10, 10, 10, 0])
-    # 15 min walk reaches A and B only: demand 300.
-    assert np.allclose(m.cells["walk.hospital.sfca"], [10000 / 300] * 2 + [0] * 3)
+    g = gauss([0, 100, 200, 300], 1800)
+    demand = np.dot([100, 200, 300, 400], g)
+    assert np.allclose(m.cells["drive.hospital.sfca"], list(g / demand * 1e4) + [0])
+    # Walk catchment is 15 min: A (0 s) and B (800 s) only.
+    g = gauss([0, 800], 900)
+    assert np.allclose(m.cells["walk.hospital.sfca"], list(g / np.dot([100, 200], g) * 1e4) + [0] * 3)
     assert m.summary["drive.hospital.pop_within_10"] == 1000
     assert m.summary["drive.hospital.pop_unreachable"] == 500
     assert m.summary["walk.hospital.pop_within_15"] == 300
@@ -83,8 +87,8 @@ def test_remove_road_by_area(tree):
     assert len(s.networks["walk"].edges) == 8
 
 
-def test_change_speed(tree):
-    s = tree.branch("factual", [ChangeSpeed(way_ids=[100], factor=2)])
+def test_road_speed_upgrade(tree):
+    s = tree.branch("factual", [RoadSpeedUpgrade(way_ids=[100], factor=2)])
     t, _ = times(tree, s.id)
     assert close(t, [0, 50, 150, 250, INF])
 
@@ -98,7 +102,7 @@ def test_factual_never_mutated(tree):
 
 def test_branch_chain(tree):
     s1 = tree.branch("factual", [AddRoad(start=toy.lonlat("D"), end=toy.lonlat("E"), speed_kph=36)])
-    s2 = tree.branch(s1.id, [ChangeSpeed(way_ids=[100], factor=2)])
+    s2 = tree.branch(s1.id, [RoadSpeedUpgrade(way_ids=[100], factor=2)])
     t, _ = times(tree, s2.id)
     assert close(t, [0, 50, 150, 250, 450])
     assert len(tree.all_edits(s2.id)) == 2
@@ -125,6 +129,19 @@ def test_validation(tree):
     assert list(tree.nodes) == ["factual"]  # the trial branch is discarded
 
 
+def gauss(t, d0):
+    e = math.exp(-0.5)
+    return np.array([(math.exp(-0.5 * (x / d0) ** 2) - e) / (1 - e) for x in t])
+
+
+def test_gaussian_weight():
+    from backend.metrics.accessibility import gaussian
+    assert gaussian(0, 900) == pytest.approx(1)
+    assert gaussian(900, 900) == pytest.approx(0)
+    assert gaussian(901, 900) == 0
+    assert gaussian(450, 900) == pytest.approx(gauss([450], 900)[0])
+
+
 def test_equity():
     assert weighted_gini([0, 1, 2], [1, 1, 1]) == pytest.approx(4 / 9)
     assert weighted_gini([5, 5, 5], [1, 2, 3]) == pytest.approx(0)
@@ -148,7 +165,15 @@ def test_isolated_node_resnaps(tree):
 
 def test_speed_change_does_not_leak_into_parent(tree):
     before = tree.factual.networks["drive"].edges.copy()
-    s1 = tree.branch("factual", [ChangeSpeed(way_ids=[100], factor=2)])
+    s1 = tree.branch("factual", [RoadSpeedUpgrade(way_ids=[100], factor=2)])
     assert tree.factual.networks["drive"].edges.equals(before)
     s2 = tree.branch(s1.id, [AddFacility(category="hospital", location=toy.lonlat("D"))])
     assert s2.networks["drive"].edges is s1.networks["drive"].edges  # shared until edited
+
+
+def test_upgrade_never_slows(tree):
+    s = tree.branch("factual", [RoadSpeedUpgrade(way_ids=[100], speed_kph=10)])  # below the 36 km/h it has
+    t, _ = times(tree, s.id)
+    assert close(t, [0, 100, 200, 300, INF])
+    with pytest.raises(ValueError):
+        RoadSpeedUpgrade(way_ids=[100], factor=0.5)

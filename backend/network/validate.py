@@ -5,7 +5,7 @@ import shapely
 from pydantic import BaseModel
 from scipy.sparse.csgraph import connected_components
 
-from .edits import AddFacility, AddRoad, ChangeSpeed, RemoveFacility, RemoveRoad, select_edges, to_xy
+from .edits import AddFacility, AddRoad, RoadSpeedUpgrade, RemoveFacility, RemoveRoad, select_edges, to_xy
 from .sandbox import ScenarioTree
 
 MAX_SNAP_M = 300  # a new road end or facility further than this from any road is suspicious
@@ -64,7 +64,7 @@ def validate(plan_edits: list, tree: ScenarioTree, parent_id: str, boundary_utm)
                     add(i, "error", f"both ends snap to the same {mode} node; the road adds nothing")
         if isinstance(e, RemoveFacility) and e.facility_id not in parent.facilities.index:
             add(i, "error", f"facility {e.facility_id} does not exist in this scenario")
-        if isinstance(e, (RemoveRoad, ChangeSpeed)):
+        if isinstance(e, (RemoveRoad, RoadSpeedUpgrade)):
             modes = e.modes if isinstance(e, RemoveRoad) else ["drive"]
             for mode in modes:
                 if len(select_edges(parent.networks[mode], e)) == 0:
@@ -72,7 +72,7 @@ def validate(plan_edits: list, tree: ScenarioTree, parent_id: str, boundary_utm)
 
     if any(p.severity == "error" for p in out):
         return out
-    if not any(isinstance(e, (AddRoad, RemoveRoad, ChangeSpeed)) for e in plan_edits):
+    if not any(isinstance(e, (AddRoad, RemoveRoad, RoadSpeedUpgrade)) for e in plan_edits):
         return out  # facility edits cannot cut the network
 
     # Connectivity: apply to a throwaway branch and measure what falls off the main component.

@@ -6,6 +6,10 @@ Time from a cell = walk from the cell centre to a street node
 minimised over the street nodes each end links to (see Network.snap_multi). The links are
 fixed by the factual city, so closing a road can only lengthen times and adding one can only
 shorten them. Dijkstra runs on the reversed graph from the facilities, so one run gives every cell.
+
+Supply versus demand uses enhanced 2SFCA (Luo and Qi 2009) with a Gaussian distance decay
+(Dai 2010): inside a catchment of d0 minutes a trip of t minutes has weight
+G(t) = (exp(-0.5 (t/d0)^2) - exp(-0.5)) / (1 - exp(-0.5)), 1 at the door and 0 at the edge.
 """
 
 import time
@@ -22,7 +26,21 @@ from backend.network.model import CATEGORIES, MODES, WALK_MPS, Network
 from .equity import weighted_gini, weighted_quantile
 
 THRESHOLDS_MIN = (10, 15, 30)
-CATCHMENT_MIN = {"drive": 15, "walk": 15}  # 2SFCA and cumulative-opportunity threshold
+CATCHMENT_OVERRIDE: float | None = None  # set by the sensitivity run
+
+
+def catchment_min(mode: str, category: str | None) -> float:
+    """E2SFCA catchment and cumulative-opportunity threshold, in minutes."""
+    if CATCHMENT_OVERRIDE is not None:
+        return CATCHMENT_OVERRIDE
+    return 30 if (mode, category) == ("drive", "hospital") else 15
+
+
+def gaussian(t, d0):
+    """E2SFCA Gaussian weight: 1 at t = 0, 0 at t >= d0."""
+    e = np.exp(-0.5)
+    return np.where(t <= d0, (np.exp(-0.5 * (t / d0) ** 2) - e) / (1 - e), 0.0)
+
 CHUNK = 32  # facilities per Dijkstra batch; bounds peak memory
 
 
@@ -51,7 +69,7 @@ class Engine:
             self._snap[net.mode] = (pos, d / WALK_MPS)
         return self._snap[net.mode]
 
-    def _one(self, net: Network, mat: csr_matrix, fac: pd.DataFrame) -> pd.DataFrame:
+    def _one(self, net: Network, mat: csr_matrix, fac: pd.DataFrame, category: str | None = None) -> pd.DataFrame:
         n = len(net.nodes)
         cell_pos, cell_acc = self._cell_snap(net)  # (cells, K)
         out = pd.DataFrame(index=self.cells.index)
@@ -75,21 +93,24 @@ class Engine:
         out["time_min"] = (d[cell_pos] + cell_acc).min(axis=1) / 60
 
         # Catchments: facility x cell travel times up to the threshold.
-        lim = CATCHMENT_MIN[net.mode] * 60
-        rows, cols = [], []
+        lim = catchment_min(net.mode, category) * 60
+        rows, cols, vals = [], [], []
         for i in range(0, nf, CHUNK):
             src = n + 1 + np.arange(i, min(i + CHUNK, nf))
             g = dijkstra(aug, indices=src, limit=lim)
             t = (g[:, cell_pos] + cell_acc[None]).min(axis=2)  # facility -> cell
             r, c = np.nonzero(t <= lim)
-            rows.append(r + i), cols.append(c)
-        r, c = np.concatenate(rows), np.concatenate(cols)
-        reach = csr_matrix((np.ones(len(r)), (r, c)), shape=(len(fac), len(self.cells)))
+            rows.append(r + i), cols.append(c), vals.append(t[r, c])
+        r, c, t = np.concatenate(rows), np.concatenate(cols), np.concatenate(vals)
+        shape = (len(fac), len(self.cells))
+        reach = csr_matrix((np.ones(len(r)), (r, c)), shape=shape)
         out["cum"] = np.asarray(reach.sum(axis=0)).ravel().astype(int)
-        # 2SFCA: supply/demand ratio per facility, summed over reachable facilities, per 10,000 people.
-        demand = reach @ self.cells["pop"].to_numpy()
+        # E2SFCA: facility supply over Gaussian-weighted demand, then each cell sums the ratios of
+        # the facilities it reaches, with the same weights. Per 10,000 people.
+        w = csr_matrix((gaussian(t, lim), (r, c)), shape=shape)
+        demand = w @ self.cells["pop"].to_numpy()
         ratio = np.divide(fac.capacity.to_numpy(), demand, out=np.zeros(len(fac)), where=demand > 0)
-        out["sfca"] = (reach.T @ ratio) * 10_000
+        out["sfca"] = (w.T @ ratio) * 10_000
         return out
 
     @staticmethod
@@ -103,7 +124,8 @@ class Engine:
                 # lon/lat come straight from the data file, so the key is the same on every
                 # platform; projected x/y can differ in the last bit between PROJ builds.
                 out[(mode, cat)] = (mode, nkey, _fingerprint(fac[["lon", "lat", "capacity"]].round(7),
-                                                             ["lon", "lat", "capacity"]))
+                                                             ["lon", "lat", "capacity"]),
+                                    catchment_min(mode, cat))
         return out
 
     def seed(self, networks, facilities, metrics: Metrics) -> None:
@@ -120,7 +142,7 @@ class Engine:
                 if mode not in mats:
                     mats[mode] = networks[mode].reversed_matrix(extra_nodes=1)
                 fac = facilities[facilities.category == cat]
-                self._cache[key] = self._one(networks[mode], mats[mode], fac)
+                self._cache[key] = self._one(networks[mode], mats[mode], fac, cat)
             parts[(mode, cat)] = self._cache[key]
             secs[f"{mode}.{cat}"] = round(time.perf_counter() - t, 2)
         cells = pd.concat(parts, axis=1)
@@ -146,5 +168,9 @@ def summarize(cells: pd.DataFrame, pop: pd.Series) -> dict[str, float]:
                 s[f"{k}.p90_p10"] = round(p90 / p10, 2) if p10 > 0 else float("nan")
                 s[f"{k}.gini"] = round(weighted_gini(t[ok], w[ok]), 3)
             s[f"{k}.mean_cum"] = round(float(np.average(cells[f"{k}.cum"], weights=w)), 2)
-            s[f"{k}.mean_sfca"] = round(float(np.average(cells[f"{k}.sfca"], weights=w)), 3)
+            # The population-weighted mean of any 2SFCA score is total supply / total population,
+            # so it never shows redistribution. Median and Gini of the score do.
+            sf = cells[f"{k}.sfca"].to_numpy()
+            s[f"{k}.sfca_median"] = round(weighted_quantile(sf, w, 0.5), 4)
+            s[f"{k}.sfca_gini"] = round(weighted_gini(sf, w), 4) if sf.sum() > 0 else float("nan")
     return s

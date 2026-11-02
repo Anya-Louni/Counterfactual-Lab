@@ -15,7 +15,7 @@ const OP_LABEL: Record<EditSpec["op"], string> = {
   remove_facility: "Close facility",
   add_road: "New road",
   remove_road: "Close road",
-  change_speed: "Change speed",
+  road_speed_upgrade: "Road speed upgrade",
 };
 
 export function PlanCard({
@@ -78,7 +78,7 @@ export function PlanCard({
                   </Row>
                 </>
               )}
-              {(e.op === "remove_road" || e.op === "change_speed") && (
+              {(e.op === "remove_road" || e.op === "road_speed_upgrade") && (
                 <>
                   {e.road && <Row label="Road">{placeName(e.road)}</Row>}
                   {e.place && (
@@ -90,9 +90,9 @@ export function PlanCard({
                   )}
                 </>
               )}
-              {e.op === "change_speed" && (
+              {e.op === "road_speed_upgrade" && (
                 <Row label="Speed x">
-                  <input className="field w-16" type="number" min={0.1} max={5} step={0.1} value={e.factor ?? 1.5}
+                  <input className="field w-16" type="number" min={1.1} max={5} step={0.1} value={e.factor ?? 1.5}
                     onChange={(ev) => set(i, { factor: Number(ev.target.value), speed_kph: null })} />
                 </Row>
               )}
@@ -298,7 +298,7 @@ export function Legend({ view, hasScenario }: { view: "swipe" | "diff"; hasScena
         <div className="mt-2 space-y-1 border-t border-[var(--line)] pt-2">
           <Sym color={EDIT_COLORS.new_road} label="new road" />
           <Sym color={EDIT_COLORS.closed_road} label="closed road" dashed />
-          <Sym color={EDIT_COLORS.faster_road} label="faster road" />
+          <Sym color={EDIT_COLORS.upgraded_road} label="road speed upgrade" />
           <div className="flex items-center gap-2 text-[var(--fg-2)]"><span className="w-4 text-center font-bold text-[var(--accent)]">+</span>new facility</div>
           <div className="flex items-center gap-2 text-[var(--fg-2)]"><span className="w-4 text-center font-bold text-[var(--bad)]">×</span>closed facility</div>
         </div>

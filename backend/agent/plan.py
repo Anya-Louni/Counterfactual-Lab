@@ -10,24 +10,24 @@ import shapely
 from pydantic import BaseModel, Field
 from pyproj import Transformer
 
-from backend.network.edits import AddFacility, AddRoad, ChangeSpeed, RemoveFacility, RemoveRoad, to_xy
+from backend.network.edits import AddFacility, AddRoad, RoadSpeedUpgrade, RemoveFacility, RemoveRoad, to_xy
 
 TO_LONLAT = Transformer.from_crs(32631, 4326, always_xy=True)
 
 
 class EditSpec(BaseModel):
-    op: Literal["add_facility", "remove_facility", "add_road", "remove_road", "change_speed"]
+    op: Literal["add_facility", "remove_facility", "add_road", "remove_road", "road_speed_upgrade"]
     category: Literal["hospital", "clinic", "pharmacy", "school"] | None = Field(
         None, description="add_facility only")
-    place: str | None = Field(None, description="place ref. add_facility: where. remove_road/change_speed: "
+    place: str | None = Field(None, description="place ref. add_facility: where. remove_road/road_speed_upgrade: "
                                                 "centre of an area, used with radius_m")
     radius_m: float | None = Field(None, description="area radius around place, metres, 50 to 2000")
     road: str | None = Field(None, description="ref of a road returned by search_places (kind=road)")
     start: str | None = Field(None, description="add_road: place ref of one end")
     end: str | None = Field(None, description="add_road: place ref of the other end")
     facility_id: str | None = Field(None, description="remove_facility: id from search results")
-    speed_kph: float | None = Field(None, description="add_road speed, or change_speed new speed")
-    factor: float | None = Field(None, description="change_speed multiplier, e.g. 1.5 for 50% faster")
+    speed_kph: float | None = Field(None, description="add_road speed, or road_speed_upgrade target speed")
+    factor: float | None = Field(None, description="road_speed_upgrade multiplier above 1, e.g. 1.5 for 50% faster")
     modes: list[Literal["drive", "walk"]] | None = Field(None, description="add_road/remove_road; default both")
     name: str | None = None
 
@@ -70,7 +70,7 @@ def resolve(spec: PlanSpec, places: dict[str, dict]) -> tuple[list, list[str]]:
                 if a and b:
                     edits.append(AddRoad(start=a, end=b, speed_kph=e.speed_kph or 40,
                                          modes=e.modes or ["drive", "walk"], name=e.name or "New road"))
-            elif e.op in ("remove_road", "change_speed"):
+            elif e.op in ("remove_road", "road_speed_upgrade"):
                 sel: dict = {}
                 if e.road:
                     if e.road in places and places[e.road].get("way_ids"):
@@ -87,7 +87,7 @@ def resolve(spec: PlanSpec, places: dict[str, dict]) -> tuple[list, list[str]]:
                 if e.op == "remove_road":
                     edits.append(RemoveRoad(**sel, modes=e.modes or ["drive", "walk"]))
                 else:
-                    edits.append(ChangeSpeed(**sel, factor=e.factor, speed_kph=e.speed_kph if not e.factor else None))
+                    edits.append(RoadSpeedUpgrade(**sel, factor=e.factor, speed_kph=e.speed_kph if not e.factor else None))
         except ValueError as err:
             problems.append(f"edit {i}: {err}")
     return edits, problems

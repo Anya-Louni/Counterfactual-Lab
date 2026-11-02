@@ -49,7 +49,7 @@ export type ScenarioNode = {
 };
 
 export type EditSpec = {
-  op: "add_facility" | "remove_facility" | "add_road" | "remove_road" | "change_speed";
+  op: "add_facility" | "remove_facility" | "add_road" | "remove_road" | "road_speed_upgrade";
   category?: Category | null;
   place?: string | null;
   radius_m?: number | null;

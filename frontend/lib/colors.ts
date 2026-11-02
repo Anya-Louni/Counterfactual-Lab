@@ -39,8 +39,7 @@ export function deltaColor(d: number | null): [number, number, number, number] {
 export const EDIT_COLORS = {
   new_road: [94, 234, 212] as [number, number, number],
   closed_road: [248, 81, 73] as [number, number, number],
-  faster_road: [250, 204, 21] as [number, number, number],
-  slower_road: [248, 81, 73] as [number, number, number],
+  upgraded_road: [250, 204, 21] as [number, number, number],
   new_facility: [94, 234, 212] as [number, number, number],
   closed_facility: [248, 81, 73] as [number, number, number],
 };

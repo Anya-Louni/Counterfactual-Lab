@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from backend.agent.graph import build
 from backend.lab import Lab
-from backend.network.edits import AddFacility, AddRoad, ChangeSpeed, RemoveFacility, RemoveRoad, select_edges, to_xy
+from backend.network.edits import AddFacility, AddRoad, RoadSpeedUpgrade, RemoveFacility, RemoveRoad, select_edges, to_xy
 from backend.network.model import CATEGORIES, DATA, MODES
 
 STATE: dict = {}
@@ -60,7 +60,7 @@ def clean(x):
     if isinstance(x, (np.integer,)):
         return int(x)
     if isinstance(x, (float, np.floating)):
-        return None if not np.isfinite(x) else round(float(x), 4)
+        return None if not np.isfinite(x) else round(float(x), 6)  # 6 dp keeps coordinates to 0.1 m
     return x
 
 
@@ -159,11 +159,11 @@ def edits_geo(sid: str):
         elif isinstance(e, AddRoad):
             feats.append({"type": "Feature", "properties": {"kind": "new_road", "name": e.name},
                           "geometry": {"type": "LineString", "coordinates": [list(e.start), list(e.end)]}})
-        elif isinstance(e, (RemoveRoad, ChangeSpeed)):
-            mode = "drive" if isinstance(e, ChangeSpeed) or "drive" in e.modes else "walk"
+        elif isinstance(e, (RemoveRoad, RoadSpeedUpgrade)):
+            mode = "drive" if isinstance(e, RoadSpeedUpgrade) or "drive" in e.modes else "walk"
             ids = select_edges(lb.tree.factual.networks[mode], e)
             g = edge_geoms(mode).reindex(ids).dropna()
-            kind = "closed_road" if isinstance(e, RemoveRoad) else "faster_road" if (e.factor or 2) > 1 else "slower_road"
+            kind = "closed_road" if isinstance(e, RemoveRoad) else "upgraded_road"
             for geom in g:
                 feats.append({"type": "Feature", "properties": {"kind": kind}, "geometry": geom.__geo_interface__})
     return clean({"type": "FeatureCollection", "features": feats})

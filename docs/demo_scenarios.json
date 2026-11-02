@@ -1,0 +1,103 @@
+[
+ {
+  "name": "clinic",
+  "layer": "walk.clinic",
+  "question": "What if a new clinic opened near Baraki?",
+  "edits": [
+   {
+    "op": "add_facility",
+    "category": "clinic",
+    "location": [
+     3.100353,
+     36.67003
+    ],
+    "name": "New facility",
+    "capacity": 1.0
+   }
+  ]
+ },
+ {
+  "name": "hospital",
+  "layer": "walk.hospital",
+  "question": "What if the main hospital in Bab El Oued closed?",
+  "edits": [
+   {
+    "op": "remove_facility",
+    "facility_id": "osm:way/26456258"
+   }
+  ]
+ },
+ {
+  "name": "road",
+  "layer": "drive.hospital",
+  "question": "What if Rue Hassiba Ben Bouali were closed to traffic?",
+  "edits": [
+   {
+    "way_ids": [
+     26320515
+    ],
+    "edge_ids": [],
+    "area": null,
+    "op": "remove_road",
+    "modes": [
+     "drive"
+    ]
+   },
+   {
+    "way_ids": [
+     26015457,
+     26227612,
+     231165211,
+     231431030,
+     231926628,
+     232362637,
+     232362638,
+     232362639,
+     297186835,
+     297203157,
+     307416877,
+     310790431,
+     310790432,
+     567909710
+    ],
+    "edge_ids": [],
+    "area": null,
+    "op": "remove_road",
+    "modes": [
+     "drive"
+    ]
+   },
+   {
+    "way_ids": [
+     25976299,
+     28511647,
+     150259696,
+     150259703,
+     364950039,
+     374417251,
+     556047936,
+     564986160
+    ],
+    "edge_ids": [],
+    "area": null,
+    "op": "remove_road",
+    "modes": [
+     "drive"
+    ]
+   },
+   {
+    "way_ids": [
+     25976298,
+     26226386,
+     231883140
+    ],
+    "edge_ids": [],
+    "area": null,
+    "op": "remove_road",
+    "modes": [
+     "drive"
+    ]
+   }
+  ]
+ }
+]
