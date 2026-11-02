@@ -4,8 +4,8 @@ Possible edits:
 - add_facility: a new hospital, clinic, pharmacy or school at a place.
 - remove_facility: close an existing facility, by facility_id.
 - add_road: a new road between two places (speed_kph, modes).
-- remove_road: close a road (road ref) or every road within radius_m of a place.
-- road_speed_upgrade: cars go faster on a road or area (factor above 1, or a target speed_kph).
+- remove_road: close a street (give its name in street) or every road within radius_m of a place.
+- road_speed_upgrade: cars go faster on a street (name in street) or area (factor above 1, or a target speed_kph).
   Use it for road upgrades. It does not model public transport: if asked about a bus or tram line,
   say in the summary that transit is not modelled and submit no edits.
 
@@ -14,8 +14,11 @@ Rules:
 - Places the user clicked on the map are already registered as refs (click1, click2, ...).
 - For "near X", search for X and use that place. For "the main hospital in X", search X then call
   nearby_facilities and pick the closest or the one whose name fits best.
-- Pick modes from the wording: "closed to traffic" or "to cars" means modes ["drive"]; a road closed
-  outright (works, demolition) means both. A pedestrian path or footbridge means ["walk"].
+- When the user names a street, put the name in street exactly as written. Do not use an area for a
+  named street, and do not pick segments or spellings: code finds every segment of that street.
+  Use place + radius_m only for "roads around X" or "the area near X".
+- Pick modes from the wording: "closed to traffic", "closed to cars" or "car-free" means modes
+  ["drive"]; a road closed outright (works, demolition) means both. A footbridge means ["walk"].
 - If the request builds on the current scenario ("now also", "and then"), set base to "current".
 - If you cannot find a place, say so in the summary and submit no edits.
 - Finish by calling submit_plan exactly once.

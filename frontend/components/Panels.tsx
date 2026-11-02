@@ -80,7 +80,7 @@ export function PlanCard({
               )}
               {(e.op === "remove_road" || e.op === "road_speed_upgrade") && (
                 <>
-                  {e.road && <Row label="Road">{placeName(e.road)}</Row>}
+                  {e.street && <Row label="Street">{e.street}</Row>}
                   {e.place && (
                     <Row label="Area">
                       {placeName(e.place)}, radius

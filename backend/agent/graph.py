@@ -25,7 +25,7 @@ from backend.network.validate import validate as validate_edits
 
 from . import facts as facts_mod
 from .numbers import unsupported
-from .plan import PlanSpec, resolve
+from .plan import PlanSpec, apply_request_rules, resolve
 from .prompts import INTERPRET, NARRATE
 
 EDITS = TypeAdapter(list[Edit])
@@ -168,15 +168,16 @@ def build(lab, model=None, checkpointer=None):
         parent = state.get("current_id", "factual") if plan.base == "current" else "factual"
         if parent not in lab.tree.nodes:
             parent = "factual"
-        edits, msgs = resolve(plan, state.get("places", {}))
-        problems = [{"edit_index": -1, "severity": "error", "message": m} for m in msgs]
+        plan, rule_problems, notes = apply_request_rules(plan, state["request"], lab.streets)
+        edits, msgs = resolve(plan, state.get("places", {}), lab.streets)
+        problems = [{"edit_index": -1, "severity": "error", "message": m} for m in rule_problems + msgs]
         if not edits and not problems:
             problems.append({"edit_index": -1, "severity": "error", "message": "the plan has no edits"})
         if edits and not problems:
             problems = [p.model_dump() for p in validate_edits(edits, lab.tree, parent, lab.boundary_utm)]
         errors = [p for p in problems if p["severity"] == "error"]
-        upd = {"edits": [e.model_dump() for e in edits], "problems": problems, "parent_id": parent,
-               "provenance": [{"node": "validate", "problems": problems}]}
+        upd = {"plan": plan.model_dump(), "edits": [e.model_dump() for e in edits], "problems": problems,
+               "parent_id": parent, "provenance": [{"node": "validate", "problems": problems, "rules": notes}]}
         if errors:
             if state.get("repairs", 0) < 1:
                 return Command(goto="interpret", update={**upd, "repairs": state.get("repairs", 0) + 1})

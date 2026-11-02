@@ -81,26 +81,9 @@ def demo(page: Page, name: str, question: str, mode: str, category: str):
     box.press("Enter")
     reel.film(1.2, fps=3)
     page.get_by_text("Plan, waiting for you").wait_for(timeout=120_000)
-    # The model sometimes closes an area around a point instead of the named street.
-    # Ask again so the demo shows the street plan.
-    for _ in range(3):
-        if not (name == "demo_road" and page.get_by_text("Area", exact=True).count()):
-            break
-        page.get_by_role("button", name="Cancel").click()
-        box.fill(question)
-        box.press("Enter")
-        page.get_by_text("Plan, waiting for you").wait_for(timeout=120_000)
-    if name == "demo_road":  # "closed to traffic": cars only, shown as an edit on the plan card
-        for cb in page.get_by_role("checkbox", name="walking").all():
-            if cb.is_checked():
-                cb.uncheck()
     reel.shot(2600)
 
-    run = page.get_by_role("button", name="Run scenario").or_(page.get_by_role("button", name="Check and run"))
-    run.click()
-    if name == "demo_road":  # an edited plan is checked again and comes back for approval
-        page.get_by_role("button", name="Run scenario").wait_for(timeout=120_000)
-        page.get_by_role("button", name="Run scenario").click()
+    page.get_by_role("button", name="Run scenario").click()
     reel.film(1.5, fps=3)
     page.get_by_text("What it means").wait_for(timeout=300_000)
     reel.film(5.5, fps=8)  # fly to the change and the growing reach

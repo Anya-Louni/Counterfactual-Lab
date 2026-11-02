@@ -14,6 +14,7 @@ from backend.metrics.accessibility import Engine, Metrics
 from backend.metrics.compare import commune_of, compare
 from backend.network.model import CRS, DATA, MODES, load_cells, load_communes, load_facilities, load_network
 from backend.geocode.local import LocalIndex
+from backend.geocode.streets import StreetIndex
 from backend.network.sandbox import ScenarioTree
 
 
@@ -74,6 +75,11 @@ class Lab:
             self.metrics[sid] = self.engine.compute(s.networks, s.facilities)
             trim_memory()
         return self.metrics[sid]
+
+    @cached_property
+    def streets(self) -> StreetIndex:
+        f = self.tree.factual
+        return StreetIndex([f.networks["drive"].edges, f.networks["walk"].edges])
 
     @cached_property
     def index(self) -> LocalIndex:

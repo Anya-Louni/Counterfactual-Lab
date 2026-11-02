@@ -20,7 +20,7 @@ Recorded from the running app with `scripts/record_demos.py`. Each one: ask, app
 
 ![Hospital closure in Bab El Oued](docs/img/demo_hospital.gif)
 
-**Closing Rue Hassiba Ben Bouali to cars.** Driving access to a hospital: 10,284 people slower, mostly in Sidi M'Hamed and Belouizdad. Walking is untouched.
+**Closing Rue Hassiba Ben Bouali to cars.** Driving access to a hospital: 10,284 people slower and 1,781 no longer within 15 minutes, mostly in Sidi M'Hamed and Belouizdad. The agent closes every segment and spelling of the street, for cars only. Walking is untouched.
 
 ![Road closure](docs/img/demo_road.gif)
 
@@ -39,9 +39,13 @@ Five edit types: open a facility, close a facility, add a road, close a road or 
 ```
 question
   -> interpret   LLM with two tools: search_places, nearby_facilities. Writes a plan that
-                 refers to places by ref (p1, click1). It never writes coordinates.
+                 refers to places by ref (p1, click1) and to streets by name. It never
+                 writes coordinates and never picks road segments.
   -> validate    code: refs exist, points inside the wilaya and within 300 m of a road,
-                 removed roads exist, nothing large gets cut off. One repair round.
+                 a named street resolves to every segment and spelling of it, an area
+                 closure is refused when the question names a street, "closed to
+                 traffic" closes it to cars only, nothing large gets cut off.
+                 One repair round.
   -> confirm     LangGraph interrupt. You approve, edit or cancel the plan.
   -> apply       copy-on-write branch of the scenario tree
   -> compute     travel times, coverage, E2SFCA, equity for every populated H3 cell
@@ -89,9 +93,9 @@ Travel time = walk from the cell centre to a street node + network time + walk f
 
 E2SFCA follows Luo and Qi (2009) with the Gaussian weight of Dai (2010): inside a catchment of d0 minutes, a trip of t minutes has weight (exp(-0.5 (t/d0)²) − exp(-0.5)) / (1 − exp(-0.5)), which is 1 at the door and 0 at the edge. The catchment is 30 minutes for hospitals by car and 15 minutes for everything else (walking, and clinics, pharmacies and schools by car). Every facility has the same capacity (see Limitations).
 
-Sensitivity: rerunning the three demos with every catchment set to 10, 15, 20 and 30 minutes (`scripts/demo_numbers.py --sensitivity`, results in `docs/sensitivity.json`) leaves the headline results unchanged: the same people get faster or slower trips at every catchment and the E2SFCA Gini moves in the same direction; only the median E2SFCA score of the road closure changes sign, from a fall below 0.001 at 10 to 20 minutes to a rise below 0.001 at 30.
+Sensitivity: the catchment only affects the E2SFCA scores and the count of facilities in reach; travel-time headlines do not depend on it. Rerunning the three demos at 10, 15, 20 and 30 minutes (`scripts/demo_numbers.py --sensitivity`, `docs/sensitivity.json`) confirms this: the same people get faster or slower trips at every catchment, and the E2SFCA Gini moves the same way; only the road closure's median E2SFCA score changes sign, falling slightly at 10 to 20 minutes and rising slightly at 30.
 
-Snapping: cells use H3 resolution 9 (201 m edge). The distance from a cell centre to its nearest street node is 110 m median and 615 m at the 95th percentile for driving, and 80 m and 445 m for walking. Weighted by population, the same figures are 43 m and 204 m for driving, and 36 m and 130 m for walking.
+Snapping: cells use H3 resolution 9 (201 m edge). Weighted by population, the distance from a cell centre to its nearest street node is 43 m median and 204 m at the 95th percentile for driving, and 36 m and 130 m for walking. Unweighted, per cell, it is 110 m and 615 m for driving and 80 m and 445 m for walking. That distance is walked at 4.5 km/h at the start of every trip, in both modes. It matters for the threshold counts: without it, the hospital closure would put 1,040 people outside a 15 minute walk instead of 4,338, and the clinic would bring 1,991 people within 15 minutes instead of none. Trip counts and the largest changes barely move.
 
 Speeds: driving uses OSMnx speed imputation (posted `maxspeed`, else the mean for that road class, e.g. 30.9 km/h for residential). Walking is 4.5 km/h everywhere.
 

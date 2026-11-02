@@ -98,3 +98,38 @@ def test_numbers():
     facts = {"a": 12345, "b": {"change": -0.034}, "name": "Bab Ezzouar 2"}
     assert unsupported("12,345 people, gini down 0.03, in Bab Ezzouar 2", facts) == []
     assert unsupported("12,346 people", facts) == ["12,346"]
+
+
+def test_named_street_area_plan_is_repaired_and_cars_only(lab):
+    q = "What if Rue Hassiba Ben Bouali were closed to traffic?"
+    area = call("PlanSpec", {"summary": "close the area", "edits": [
+        {"op": "remove_road", "place": "p1", "radius_m": 300}]})
+    street = call("PlanSpec", {"summary": "close the street", "edits": [
+        {"op": "remove_road", "street": "Rue Hassiba Ben Bouali", "modes": ["drive", "walk"]}]}, 1)
+    model = Scripted([call("search_places", {"query": "Rue Hassiba Ben Bouali", "kind": "road"}), area, street])
+    g = build(lab, model)
+    cfg = {"configurable": {"thread_id": "t5"}}
+    out = run_until_pause(g, cfg, {"request": q})
+    assert "interrupt" in out, out
+    edit = out["interrupt"]["edits"][0]
+    assert edit["area"] is None and edit["modes"] == ["drive"]  # cars only, by the request's wording
+    assert edit["way_ids"] == lab.streets.resolve("Rue Hassiba Ben Bouali")["way_ids"]
+    state = g.get_state(cfg).values
+    first = [p for p in state["provenance"] if p.get("node") == "validate"][0]
+    assert "names a street" in first["problems"][0]["message"]
+
+
+def test_unknown_street_fails(lab):
+    bad = call("PlanSpec", {"summary": "x", "edits": [{"op": "remove_road", "street": "Rue Qui N'existe Pas"}]})
+    g = build(lab, Scripted([bad, bad]))
+    out = run_until_pause(g, {"configurable": {"thread_id": "t6"}}, {"request": "close Rue Qui N'existe Pas"})
+    assert out["final"]["status"] == "failed"
+    assert "no street named" in out["final"]["problems"][0]["message"]
+
+
+def test_street_spellings(lab):
+    a = lab.streets.resolve("Rue Hassiba Ben Bouali")
+    for q in ("hassiba benbouali", "Boulevard Hassiba Ben Bouali", "شارع حسيبة بن بوعلي"):
+        assert lab.streets.resolve(q)["way_ids"] == a["way_ids"], q
+    amirouche = set(lab.streets.resolve("Boulevard Colonel Amirouche")["way_ids"])
+    assert len(amirouche - set(a["way_ids"])) > 0  # a merged segment does not pull in the other street

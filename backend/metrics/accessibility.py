@@ -27,6 +27,7 @@ from .equity import weighted_gini, weighted_quantile
 
 THRESHOLDS_MIN = (10, 15, 30)
 CATCHMENT_OVERRIDE: float | None = None  # set by the sensitivity run
+CELL_ACCESS_WALK = True  # walk from the cell centre to the street at the start of every trip; off only for checks
 
 
 def catchment_min(mode: str, category: str | None) -> float:
@@ -66,7 +67,8 @@ class Engine:
     def _cell_snap(self, net: Network):
         if net.mode not in self._snap:  # nodes never change, so one snap per mode
             pos, d = net.snap_multi(self.cells.x.to_numpy(), self.cells.y.to_numpy())
-            self._snap[net.mode] = (pos, d / WALK_MPS)
+            acc = d / WALK_MPS if CELL_ACCESS_WALK else np.where(np.isfinite(d), 0.0, np.inf)
+            self._snap[net.mode] = (pos, acc)
         return self._snap[net.mode]
 
     def _one(self, net: Network, mat: csr_matrix, fac: pd.DataFrame, category: str | None = None) -> pd.DataFrame:

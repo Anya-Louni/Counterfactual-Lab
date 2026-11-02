@@ -51,6 +51,8 @@ def headline(lab, engine, demos) -> dict:
 def main():
     demos = json.loads((ROOT / "docs" / "demo_scenarios.json").read_text(encoding="utf-8"))
     lab = Lab()
+    if "--no-access" in sys.argv:  # check: drop the walk from cell centre to street
+        acc.CELL_ACCESS_WALK = False
     if "--sensitivity" not in sys.argv:
         print(json.dumps(headline(lab, Engine(lab.cells), demos), indent=1))
         return

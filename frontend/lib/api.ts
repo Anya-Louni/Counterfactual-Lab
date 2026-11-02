@@ -53,7 +53,7 @@ export type EditSpec = {
   category?: Category | null;
   place?: string | null;
   radius_m?: number | null;
-  road?: string | null;
+  street?: string | null;
   start?: string | null;
   end?: string | null;
   facility_id?: string | null;

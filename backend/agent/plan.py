@@ -4,6 +4,7 @@ The LLM never writes coordinates. It refers to places returned by search tools
 (refs like "p3") or clicked on the map ("click1"). Code resolves the refs.
 """
 
+import re
 from typing import Literal
 
 import shapely
@@ -22,7 +23,8 @@ class EditSpec(BaseModel):
     place: str | None = Field(None, description="place ref. add_facility: where. remove_road/road_speed_upgrade: "
                                                 "centre of an area, used with radius_m")
     radius_m: float | None = Field(None, description="area radius around place, metres, 50 to 2000")
-    road: str | None = Field(None, description="ref of a road returned by search_places (kind=road)")
+    street: str | None = Field(None, description="remove_road/road_speed_upgrade: the street's name as the user "
+                                                 "wrote it. Code finds every segment and spelling of it.")
     start: str | None = Field(None, description="add_road: place ref of one end")
     end: str | None = Field(None, description="add_road: place ref of the other end")
     facility_id: str | None = Field(None, description="remove_facility: id from search results")
@@ -45,7 +47,28 @@ def circle(lon: float, lat: float, r: float) -> list[tuple[float, float]]:
     return [TO_LONLAT.transform(x, y) for x, y in ring]
 
 
-def resolve(spec: PlanSpec, places: dict[str, dict]) -> tuple[list, list[str]]:
+# "closed to traffic", "fermée à la circulation", "car-free": cars only, people still walk.
+CARS_ONLY = re.compile(r"(to|for|aux?|à la)\s+(traffic|cars?|vehicles?|motor|voitures?|v[ée]hicules|circulation)"
+                       r"|car[- ]free|pedestriani[sz]|pi[ée]tonn", re.I)
+
+
+def apply_request_rules(spec: PlanSpec, request: str, streets) -> tuple[PlanSpec, list[str], list[str]]:
+    """Rules that depend on the user's words. Returns the plan, problems, and notes on what was changed."""
+    problems, notes = [], []
+    named = streets.mentioned(request) if streets else []
+    edits = []
+    for i, e in enumerate(spec.edits):
+        if e.op in ("remove_road", "road_speed_upgrade") and named and e.place and not e.street:
+            problems.append(f"edit {i}: the request names a street ({named[0]}); give it as street, "
+                            "not as an area around a place")
+        if e.op == "remove_road" and CARS_ONLY.search(request) and (e.modes is None or "walk" in e.modes):
+            e = e.model_copy(update={"modes": ["drive"]})
+            notes.append(f"edit {i}: the request closes the road to traffic, so it is closed to cars only")
+        edits.append(e)
+    return spec.model_copy(update={"edits": edits}), problems, notes
+
+
+def resolve(spec: PlanSpec, places: dict[str, dict], streets=None) -> tuple[list, list[str]]:
     """Typed edits plus a list of problems (unknown refs, missing fields)."""
     edits, problems = [], []
 
@@ -72,17 +95,18 @@ def resolve(spec: PlanSpec, places: dict[str, dict]) -> tuple[list, list[str]]:
                                          modes=e.modes or ["drive", "walk"], name=e.name or "New road"))
             elif e.op in ("remove_road", "road_speed_upgrade"):
                 sel: dict = {}
-                if e.road:
-                    if e.road in places and places[e.road].get("way_ids"):
-                        sel["way_ids"] = places[e.road]["way_ids"]
+                if e.street:
+                    hit = streets.resolve(e.street) if streets else {"way_ids": []}
+                    if hit["way_ids"]:
+                        sel["way_ids"] = hit["way_ids"]
                     else:
-                        problems.append(f"edit {i}: road ref {e.road!r} is not a road returned by search_places")
+                        problems.append(f"edit {i}: no street named {e.street!r} in the road network")
                 if e.place and e.radius_m:
                     c = pt(e.place, i, "place")
                     if c:
                         sel["area"] = circle(*c, min(max(e.radius_m, 50), 2000))
                 if not sel:
-                    problems.append(f"edit {i}: {e.op} needs a road ref or a place with radius_m")
+                    problems.append(f"edit {i}: {e.op} needs a street name or a place with radius_m")
                     continue
                 if e.op == "remove_road":
                     edits.append(RemoveRoad(**sel, modes=e.modes or ["drive", "walk"]))
